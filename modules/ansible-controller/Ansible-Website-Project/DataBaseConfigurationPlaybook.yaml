@@ -1,0 +1,44 @@
+- name: db configuration
+  hosts: _dev_dbserver
+  become: yes
+  tasks:
+    - name: Install mariadb and MySQL Python adapter
+      apt:
+        name:
+          - mariadb-server
+          - python3-mysqldb
+        state: latest
+
+    - name: Start mariadb
+      systemd:
+        name: mariadb
+        state: started
+      become: yes
+
+    - name: Enable mariadb
+      systemd:
+        name: mariadb
+        enabled: yes
+      become: yes
+
+    - name: Copy the sql script
+      copy:
+        src: ~/Ansible-Website-Project/db-load-script.sql
+        dest: ~/
+        remote_src: yes
+
+    - name: Create password for the root user
+      mysql_user:
+        login_password: ''
+        login_user: root
+        name: root
+        password: "1234"
+        state: present
+
+    - name: Copy the .my.cnf file
+      copy:
+        src: ~/Ansible-Website-Project/.my.cnf
+        dest: ~/
+        remote_src: yes
+
+    

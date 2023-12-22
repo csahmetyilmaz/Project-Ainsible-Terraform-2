@@ -1,5 +1,5 @@
 output "instance" {
-   value = aws_instance.myapp-server
+   value = aws_instance.database-server
  }
 
  output "aws_ami_id" {

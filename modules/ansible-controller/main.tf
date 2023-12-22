@@ -1,4 +1,4 @@
-resource "aws_security_group" "webserver-sg" {
+resource "aws_default_security_group" "default-sg" {
 
   vpc_id = var.vpc_id
 
@@ -22,8 +22,9 @@ resource "aws_security_group" "webserver-sg" {
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
       description = "HTTPS"
+      
     }
-    ingress {
+     ingress {
       from_port = 9100
       to_port = 9100
       protocol = "tcp"
@@ -38,17 +39,17 @@ resource "aws_security_group" "webserver-sg" {
     }
 
     tags = {
-      Name: "${var.env_prefix}-sg"
+      Name: "${var.env_prefix}-controller-sg"
    }
 
 
 }
 data "aws_ami" "project-amazon-linux-image" {
     most_recent = true # most recent image version
-    owners = ["099720109477"] # image ın sahibi amazon olsun
+    owners = ["amazon"] # image ın sahibi amazon olsun
     filter {# query in için kriterlerin neler burada belirleyebilirsin
         name = "name"
-        values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"] # başlangıcı -*- öncesi
+        values = [var.image_name] # başlangıcı -*- öncesi
 
     }    
     filter {
@@ -58,19 +59,49 @@ data "aws_ami" "project-amazon-linux-image" {
 }
 
 
-
-resource "aws_instance" "myapp-server" {
+resource "aws_instance" "ansible-controller" {
    ami =  data.aws_ami.project-amazon-linux-image.id
    instance_type = var.instance_type
    subnet_id = var.subnet_id #module.myapp-subnet-1.subnet.id
    availability_zone = var.availibility_zone
-   vpc_security_group_ids = [aws_security_group.webserver-sg.id]
+   vpc_security_group_ids = [aws_default_security_group.default-sg.id]
    associate_public_ip_address = true
    key_name = var.my_public_key
    user_data =  file("${path.module}/entry-script.sh")
+   iam_instance_profile=var.iam_instance_profile
 
    tags = {
-      Name: "${var.env_prefix}-webserver"
+      Name: "BOSS-${var.env_prefix}-controller"
      }
+
+      connection {
+        type = "ssh"
+        host = self.public_ip
+        user = "ec2-user"
+        private_key = file("/myKey2.pem")
+    }
+
+    provisioner "file" {
+    # dosyaları veya directory leri local dan eni oluşturulan resource a kopyalar.
+    source ="myKey2.pem"
+    destination = "myKey2.pem" # cmd ye pwd yaptığımız zaman çıkan yer
 }
+
+    provisioner "remote-exec" {
+    inline = [
+      "sudo chmod 400 myKey2.pem",  
+        ]
+
+    }
+
+    provisioner "local-exec" {
+    command = "scp -r -i myKey2.pem ${path.module}/Ansible-Website-Project/* ec2-user@${self.public_ip}:/home/ec2-user/Ansible-Website-Project"  # Klasörü kopyala"
+    
+    }
+  
+}
+
+
+ 
+
    

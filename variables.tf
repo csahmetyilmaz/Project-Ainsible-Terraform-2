@@ -7,12 +7,11 @@ variable vpc_id{}
 variable az_public_subnet { type = map(string) }
 variable az_private_subnet { type = map(string) }
 variable az_database_subnet { type = map(string) }
-variable availibility_zones { type=list(string) }
 
 
 variable my_ip{}
 variable image_name{}
 variable my_public_key{}
 variable instance_type{}
-
+variable az_index {type=number}
 

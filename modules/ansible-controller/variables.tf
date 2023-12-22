@@ -6,5 +6,6 @@ variable image_name{}
 variable my_public_key{}
 variable instance_type{}
 variable subnet_id{}
+variable iam_instance_profile {} 
 
 

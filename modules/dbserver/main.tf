@@ -1,4 +1,4 @@
-resource "aws_security_group" "webserver-sg" {
+resource "aws_security_group" "dbserver-sg" {
 
   vpc_id = var.vpc_id
 
@@ -30,6 +30,21 @@ resource "aws_security_group" "webserver-sg" {
       cidr_blocks = ["0.0.0.0/0"]
       description = "Prometheus Node Exporter"
     }
+     ingress {
+      from_port = 9100
+      to_port = 9100
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = "Prometheus Node Exporter"
+    }
+
+    ingress {
+      from_port = 3306
+      to_port = 3306
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = "MYSQL/Aurora"
+    }
     egress {
       from_port = 0
       to_port = 0
@@ -59,18 +74,18 @@ data "aws_ami" "project-amazon-linux-image" {
 
 
 
-resource "aws_instance" "myapp-server" {
+resource "aws_instance" "database-server" {
    ami =  data.aws_ami.project-amazon-linux-image.id
    instance_type = var.instance_type
    subnet_id = var.subnet_id #module.myapp-subnet-1.subnet.id
    availability_zone = var.availibility_zone
-   vpc_security_group_ids = [aws_security_group.webserver-sg.id]
+   vpc_security_group_ids = [aws_security_group.dbserver-sg.id]
    associate_public_ip_address = true
    key_name = var.my_public_key
    user_data =  file("${path.module}/entry-script.sh")
 
    tags = {
-      Name: "${var.env_prefix}-webserver"
+      Name: "${var.env_prefix}-dbserver"
      }
 }
    

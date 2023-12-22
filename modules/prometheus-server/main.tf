@@ -1,19 +1,14 @@
-resource "aws_security_group" "webserver-sg" {
+resource "aws_security_group" "Prometheus-sg" {
 
-  vpc_id = var.vpc_id
+    vpc_id = var.vpc_id
+    name = "${var.env_prefix}-prometheus-sg"
 
     ingress {
       from_port = 80
       to_port = 80
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-    }
-    ingress {
-      from_port = 22
-      to_port = 22
-      protocol = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-      #[var.my_ip]
+      description = "HTTP"
     }
 
     ingress {
@@ -24,11 +19,36 @@ resource "aws_security_group" "webserver-sg" {
       description = "HTTPS"
     }
     ingress {
+      from_port = 22
+      to_port = 22
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"] #[var.my_ip]
+      description = "SSH"
+    }
+
+    ingress {
+      from_port = 9090
+      to_port = 9090
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = "Prometheus"
+
+    }
+
+    ingress {
       from_port = 9100
       to_port = 9100
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
-      description = "Prometheus Node Exporter"
+      description = "Node Exporter"
+    }
+
+    ingress {
+      from_port = 3000
+      to_port = 3000
+      protocol = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = "Grafana"
     }
     egress {
       from_port = 0
@@ -38,12 +58,12 @@ resource "aws_security_group" "webserver-sg" {
     }
 
     tags = {
-      Name: "${var.env_prefix}-sg"
+      Name: "${var.env_prefix}-prometheus-sg"
    }
 
 
 }
-data "aws_ami" "project-amazon-linux-image" {
+data "aws_ami" "project-ubuntu-image" {
     most_recent = true # most recent image version
     owners = ["099720109477"] # image ın sahibi amazon olsun
     filter {# query in için kriterlerin neler burada belirleyebilirsin
@@ -59,18 +79,19 @@ data "aws_ami" "project-amazon-linux-image" {
 
 
 
-resource "aws_instance" "myapp-server" {
-   ami =  data.aws_ami.project-amazon-linux-image.id
+
+resource "aws_instance" "prometheus-server" {
+   ami =  data.aws_ami.project-ubuntu-image.id
    instance_type = var.instance_type
    subnet_id = var.subnet_id #module.myapp-subnet-1.subnet.id
    availability_zone = var.availibility_zone
-   vpc_security_group_ids = [aws_security_group.webserver-sg.id]
+   vpc_security_group_ids = [aws_security_group.Prometheus-sg.id]
    associate_public_ip_address = true
    key_name = var.my_public_key
-   user_data =  file("${path.module}/entry-script.sh")
+   user_data =  var.user_data
 
    tags = {
-      Name: "${var.env_prefix}-webserver"
+      Name: "${var.env_prefix}-prometheus-server"
      }
 }
    

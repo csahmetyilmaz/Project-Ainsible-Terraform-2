@@ -1,0 +1,17 @@
+name: Install and Start Docker
+hosts: all
+become: yes
+
+tasks:
+  - name: download Docker install script
+    shell: curl -fsSL https://get.docker.com -o get-docker.sh
+
+  - name: install Docker
+    shell: sh ./get-docker.sh
+
+  - name: Docker user config
+    shell: |
+      usermod -a -G docker ec2-user
+      chmod 666 /var/run/docker.sock
+  
+  

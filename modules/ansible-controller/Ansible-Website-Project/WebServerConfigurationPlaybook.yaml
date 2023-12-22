@@ -1,0 +1,34 @@
+- name: web server configuration
+  hosts: web_server
+  become: yes
+      
+  tasks: 
+    - name: install the latest version of Git, Apache, Php, Php-Mysqlnd
+      package:
+        name: 
+          - git
+          - httpd
+          - php
+          - php-mysqlnd
+        state: latest
+
+    - name: start the httpd server and enable it
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+        #command: systemctl start httpd
+   
+    - name: clone the repo of the website
+      shell: |
+        if [ -z "$(ls -al /var/www/html | grep .git)" ]; then
+          git clone https://github.com/NazifAltintas/app-ecommerce.git /var/www/html/
+          echo "ok"
+        else
+          echo "already cloned..."
+        fi
+      register: result
+
+    - name: DEBUG
+      debug:
+        var: result
