@@ -1,0 +1,206 @@
+# - name: install docker and configure
+#   hosts: _development
+#   become: true
+#   tasks:
+#     - name: update all packages
+#       ansible.builtin.yum:
+#         name: "*"
+#         state: latest 
+#     # we may need to uninstall any existing docker files from the centos repo first. 
+
+#     - name: remove old docker packages
+#       ansible.builtin.yum:
+#         name: 
+#         - docker
+#         - docker-client
+#         - docker-client-latest
+#         - docker-common
+#         - docker-latest
+#         - docker-latest-logrotate
+#         - docker-logrotate
+#         - docker-engine
+#         state: removed
+
+#     - name: Install yum utils
+#       ansible.builtin.yum:
+#         name: "yum-utils"
+#         state: latest
+#     # yum-utils is a collection of tools and programs for managing yum repositories, installing debug packages, source packages, extended information from repositories and administration.
+
+#     - name : Add docker repo
+#       ansible.builtin.get_url:
+#         url: https://download.docker.com/linux/centos/docker-ce.repo
+#         dest: /etc/yum.repos.d/docker-ce.repo
+
+#     - name: Install Docker
+#       ansible.builtin.package: # isletim sistemini anliyor ve ona gore yukleme yapiyor
+#         name: docker-ce
+#         state: latest
+
+#     - name: add user ec2-user to docker group
+#       ansible.builtin.user:
+#         name: ec2-user
+#         groups: docker
+#         append: yes # "usermod -a -G docker ec2-user" yes demez isek ec2-user i docker grubuna ekliyor fakat diger gruplardan cikartiyor / eski gruplardan silme    
+
+#     - name: start docker service
+#       ansible.builtin.service:
+#         name: docker
+#         state: started
+#         enabled: yes
+
+- name: configure postgre instance
+  hosts: _ansible_postgresql
+  become: true
+  vars_files:
+   - secret.yml
+  vars:
+    container_path: /home/ec2-user/postgresql
+    container_name: cw_postgre
+    image_name: clarusway/postgre
+  tasks:    
+    - name: copy files to the postgresql node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible-project/postgres/ # dockerfile ve initsql
+        dest: "{{ container_path }}" # postgresql klasorunu olusturacak
+
+    - name: remove "{{ container_name }}" container # eskiden olusturulmus imageler ve containerlari silsin diyoruz. 
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+    
+    - name: remove "{{ image_name }}" image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        state: absent
+    
+    - name: build docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build: 
+          path: "{{ container_path }}" 
+        source: build
+        state: present
+      register: image_info
+
+    - name: print the image_info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: launch postgresql docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        ports: 
+          - "5432:5432"
+        env: 
+          POSTGRES_PASSWORD:  "{{ password }}"
+        volumes:
+          - /db-data:/var/lib/postgresql/data # bindmount
+      register: container_info
+
+    - name: print the container information
+      ansible.builtin.debug:
+        var: container_info
+
+- name: nodejs configureation
+  hosts: _ansible_nodejs
+  become: true
+  vars:  
+    container_path: /home/ec2-user/nodejs
+    container_name: cw_nodejs
+    image_name: clarusway/nodejs
+  tasks:
+    - name: copy files to the nodejs node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible-project/nodejs/ 
+        dest: "{{ container_path }}"
+
+    - name: remove "{{ container_name }}" container # eskiden olusturulmus imageler ve containerlari silsin diyoruz. 
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+    
+    - name: remove "{{ image_name }}" image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        state: absent
+
+    - name: build docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build: 
+          path: "{{ container_path }}" 
+        source: build
+        state: present
+      register: image_info
+
+    - name: print the image_info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: run nodejs docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        ports: 
+          - "5000:5000"
+      register: container_info
+
+    - name: print the container information
+      ansible.builtin.debug:
+        var: container_info
+
+- name: React UI Server Configureation
+  hosts: _ansible_react
+  become: true
+  vars:  
+    container_path: /home/ec2-user/react
+    container_name: cw_react
+    image_name: clarusway/react
+  tasks:
+    - name: copy files to the react node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible-project/react/ 
+        dest: "{{ container_path }}" 
+
+    - name: remove "{{ container_name }}" container # eskiden olusturulmus imageler ve containerlari silsin diyoruz. 
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+    
+    - name: remove "{{ image_name }}" image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        state: absent
+
+    - name: build docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build: 
+          path: "{{ container_path }}"
+        source: build
+        state: present
+      register: image_info
+
+    - name: print the image_info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: run react docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        ports: 
+        - "3000:3000"
+      register: container_info
+
+    - name: print the container information
+      ansible.builtin.debug:
+        var: container_info
