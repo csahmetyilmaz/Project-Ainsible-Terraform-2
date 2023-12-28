@@ -1,0 +1,11 @@
+//aws_access_key = ""
+//aws_secret_key = ""
+myami = "ami-0ef50c2b2eb330511" # RedHat makina
+mykey = "abdulhamidgokce01-us-east2"
+tags = ["postgresql", "nodejs", "react"]
+instancetype = ["t2.micro", "t2.micro", "t3a.medium"]
+controlinstancetype = "t3a.medium"
+num = 3
+region = "us-east-2"
+mysecgr = "ansible-project-sec-gr"
+user = "hamidgokce"
