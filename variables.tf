@@ -11,7 +11,7 @@ variable az_database_subnet { type = map(string) }
 
 variable my_ip{}
 variable image_name{}
-variable my_public_key{}
+variable my_key{}
 variable instance_type{}
 variable az_index {type=number}
 

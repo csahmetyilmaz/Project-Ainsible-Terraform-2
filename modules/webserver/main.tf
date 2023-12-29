@@ -7,12 +7,14 @@ resource "aws_security_group" "webserver-sg" {
       to_port = 80
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
+      description = "HTTP"
     }
     ingress {
       from_port = 22
       to_port = 22
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
+      description = "SSH"
       #[var.my_ip]
     }
 
@@ -45,10 +47,10 @@ resource "aws_security_group" "webserver-sg" {
 }
 data "aws_ami" "project-amazon-linux-image" {
     most_recent = true # most recent image version
-    owners = ["099720109477"] # image ın sahibi amazon olsun
+    owners =["amazon"]# ["099720109477"] # image ın sahibi amazon olsun
     filter {# query in için kriterlerin neler burada belirleyebilirsin
         name = "name"
-        values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"] # başlangıcı -*- öncesi
+        values = [var.image_name] # başlangıcı -*- öncesi
 
     }    
     filter {
@@ -66,7 +68,7 @@ resource "aws_instance" "myapp-server" {
    availability_zone = var.availibility_zone
    vpc_security_group_ids = [aws_security_group.webserver-sg.id]
    associate_public_ip_address = true
-   key_name = var.my_public_key
+   key_name = var.my_key
    user_data =  file("${path.module}/entry-script.sh")
 
    tags = {

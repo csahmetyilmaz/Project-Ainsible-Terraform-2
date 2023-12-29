@@ -1,25 +1,28 @@
-- name: web server configuration
-  hosts: web_server
+- name: Web Server Configuration
+  hosts: _dev_webserver
   become: yes
-      
-  tasks: 
-    - name: install the latest version of Git, Apache, Php, Php-Mysqlnd
+
+  vars_files:
+        - /home/ec2-user/vars.yml
+    
+
+  tasks:
+    - name: Install the latest version of Git, Apache, Php, Php-Mysqlnd
       package:
-        name: 
+        name:
           - git
           - httpd
           - php
           - php-mysqlnd
         state: latest
 
-    - name: start the httpd server and enable it
+    - name: Start the Apache server and enable it
       service:
         name: httpd
         state: started
         enabled: yes
-        #command: systemctl start httpd
-   
-    - name: clone the repo of the website
+
+    - name: Clone the repo of the website
       shell: |
         if [ -z "$(ls -al /var/www/html | grep .git)" ]; then
           git clone https://github.com/NazifAltintas/app-ecommerce.git /var/www/html/
@@ -27,8 +30,28 @@
         else
           echo "already cloned..."
         fi
+      args:
+        executable: /bin/bash
       register: result
 
     - name: DEBUG
       debug:
         var: result
+
+    - name: Set the new IP address
+      set_fact:
+        database_server_ip: "{{ database_server_ip }}"
+
+    - name: Update Database Connection IP in index.php
+      replace:
+        path: "/var/www/html/index.php"
+        regexp: "(\\$link = mysqli_connect\\(')\\d+\\.\\d+\\.\\d+\\.\\d+('\\, 'ecomuser', 'ecompassword', 'ecomdb'\\);)"
+        replace: "$link = mysqli_connect('{{ database_server_ip }}', 'ecomuser', 'ecompassword', 'ecomdb');"  # Yeni IP adresini içeren satır
+      register: replace_result
+      changed_when: "'{{ database_server_ip }}' not in replace_result.content"
+
+    - name: Display Replace Result
+      debug:
+        var: replace_result
+
+  

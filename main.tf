@@ -15,6 +15,17 @@ data "template_file" "user_data_template_ps" {
   }
 }
 
+data "template_file" "user_data_template_ac" {
+  template = file("./modules/ansible-controller/entry-script.sh")
+  vars = {
+    ws_public_ip_value = module.web-server.instance.public_ip
+    db_public_ip_value = module.database-server.instance.public_ip
+  }
+}
+
+
+
+
 
 module "myapp-subnet" {
     source = "./modules/subnet"
@@ -37,9 +48,11 @@ module "ansible-controller" {
     instance_type = var.instance_type
     subnet_id = module.myapp-subnet.subnet[var.az_index].id
     availibility_zone = module.myapp-subnet.availibility_zone[var.az_index]
-    my_public_key = var.my_public_key
+    my_key = var.my_key
     vpc_id = aws_vpc.myapp-vpc.id
     iam_instance_profile = aws_iam_instance_profile.ec2_instance_profile.name
+    user_data = data.template_file.user_data_template_ac.rendered
+
 }
 
 module "web-server" {
@@ -50,7 +63,7 @@ module "web-server" {
     instance_type = var.instance_type
     subnet_id = module.myapp-subnet.subnet[var.az_index].id
     availibility_zone = module.myapp-subnet.availibility_zone[var.az_index]
-    my_public_key = var.my_public_key
+    my_key = var.my_key
     vpc_id = aws_vpc.myapp-vpc.id
   
     
@@ -64,7 +77,7 @@ module "database-server" {
     instance_type = var.instance_type
     subnet_id = module.myapp-subnet.subnet[var.az_index].id
     availibility_zone = module.myapp-subnet.availibility_zone[var.az_index]
-    my_public_key = var.my_public_key
+    my_key = var.my_key
     vpc_id = aws_vpc.myapp-vpc.id
   
     
@@ -78,7 +91,7 @@ module "prometheus-server" {
     instance_type = var.instance_type
     subnet_id = module.myapp-subnet.subnet[var.az_index].id
     availibility_zone = module.myapp-subnet.availibility_zone[var.az_index]
-    my_public_key = var.my_public_key
+    my_key = var.my_key
     vpc_id = aws_vpc.myapp-vpc.id
     user_data = data.template_file.user_data_template_ps.rendered
    

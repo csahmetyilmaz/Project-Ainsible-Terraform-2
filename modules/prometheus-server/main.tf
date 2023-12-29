@@ -87,7 +87,7 @@ resource "aws_instance" "prometheus-server" {
    availability_zone = var.availibility_zone
    vpc_security_group_ids = [aws_security_group.Prometheus-sg.id]
    associate_public_ip_address = true
-   key_name = var.my_public_key
+   key_name = var.my_key
    user_data =  var.user_data
 
    tags = {

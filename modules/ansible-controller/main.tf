@@ -7,12 +7,14 @@ resource "aws_default_security_group" "default-sg" {
       to_port = 80
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
+      description = "HTTP"
     }
     ingress {
       from_port = 22
       to_port = 22
       protocol = "tcp"
       cidr_blocks = ["0.0.0.0/0"]
+      description = "SSH"
       #[var.my_ip]
     }
 
@@ -66,8 +68,8 @@ resource "aws_instance" "ansible-controller" {
    availability_zone = var.availibility_zone
    vpc_security_group_ids = [aws_default_security_group.default-sg.id]
    associate_public_ip_address = true
-   key_name = var.my_public_key
-   user_data =  file("${path.module}/entry-script.sh")
+   key_name = var.my_key
+   user_data =  var.user_data
    iam_instance_profile=var.iam_instance_profile
 
    tags = {
@@ -78,27 +80,70 @@ resource "aws_instance" "ansible-controller" {
         type = "ssh"
         host = self.public_ip
         user = "ec2-user"
-        private_key = file("/myKey2.pem")
+        private_key = file("${var.my_key}.pem")
     }
+    provisioner "remote-exec" {
+    inline = [
+      "mkdir /home/ec2-user/Ansible-Website-Project",
+        
+        ]
 
+    }
     provisioner "file" {
     # dosyaları veya directory leri local dan eni oluşturulan resource a kopyalar.
-    source ="myKey2.pem"
-    destination = "myKey2.pem" # cmd ye pwd yaptığımız zaman çıkan yer
+    source ="${var.my_key}.pem"
+    destination = "/home/ec2-user/Ansible-Website-Project/${var.my_key}.pem" # cmd ye pwd yaptığımız zaman çıkan yer
 }
+
+  # provisioner "file" {
+  # # dosyaları veya directory leri local dan eni oluşturulan resource a kopyalar.
+  # source ="${path.module}/Ansible-Website-Project"
+  # destination = "/home/ec2-user/Ansible-Website-Project/"
+  # }
+
+    provisioner "local-exec" {
+  #  dosyaları veya directory leri local dan eni oluşturulan resource a kopyalar. Gizli dosyaları (başında . olanlar) kopyala
+    command = "scp -r -i ${var.my_key}.pem ${path.module}/Ansible-Website-Project/{*,.*} ec2-user@${self.public_ip}:/home/ec2-user/Ansible-Website-Project/"
+}
+
+
 
     provisioner "remote-exec" {
     inline = [
-      "sudo chmod 400 myKey2.pem",  
+      "cd /home/ec2-user/Ansible-Website-Project",
+      "sudo chmod 400 ${var.my_key}.pem", 
         ]
 
     }
 
-    provisioner "local-exec" {
-    command = "scp -r -i myKey2.pem ${path.module}/Ansible-Website-Project/* ec2-user@${self.public_ip}:/home/ec2-user/Ansible-Website-Project"  # Klasörü kopyala"
-    
-    }
-  
+   # PowerShell script'i dosyaya yazılır
+
+
+# PowerShell script dosyasını kopyala ve çalıştır
+
+#provisioner "local-exec" {
+#    command = "bash my_script.sh"
+#    working_dir = path.module
+#  }
+#
+#  provisioner "remote-exec" {
+#    inline = [
+#      "echo 'Ansible Controller is ready!'"
+#      # Buraya Ansible playbook'larını çalıştırmak için gerekli komutları ekleyin
+#    ]
+#  }
+
+}
+
+resource "null_resource" "ansible_controller" {
+  triggers = {
+    private_ip = aws_instance.ansible-controller.private_ip
+  }
+
+ # provisioner "local-exec" {
+ #   command = "bash my_script.sh"
+ #   working_dir = path.module
+ # }
 }
 
 
