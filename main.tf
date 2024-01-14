@@ -6,20 +6,16 @@ resource "aws_vpc" "myapp-vpc" {
     }
 }
 
-data "template_file" "user_data_template_ps" {
-  template = file("./modules/prometheus-server/entry-script.sh")
-  vars = {
-    ws_private_ip_value = module.web-server.instance.private_ip
-    db_private_ip_value = module.database-server.instance.private_ip
-    ac_private_ip_value = module.ansible-controller.instance.private_ip
-  }
-}
 
 data "template_file" "user_data_template_ac" {
   template = file("./modules/ansible-controller/entry-script.sh")
   vars = {
     ws_public_ip_value = module.web-server.instance.public_ip
     db_public_ip_value = module.database-server.instance.public_ip
+    ps_public_ip_value = module.prometheus-server.instance.public_ip
+    db_private_ip_value = module.database-server.instance.private_ip
+    ps_private_ip_value = module.prometheus-server.instance.private_ip
+    ws_private_ip_value = module.web-server.instance.private_ip
   }
 }
 
@@ -93,7 +89,8 @@ module "prometheus-server" {
     availibility_zone = module.myapp-subnet.availibility_zone[var.az_index]
     my_key = var.my_key
     vpc_id = aws_vpc.myapp-vpc.id
-    user_data = data.template_file.user_data_template_ps.rendered
+    
+  
    
 }
 

@@ -19,3 +19,4 @@ output "target_ip" {
 output "private_ip" {
   value = aws_instance.ansible-controller.private_ip
 }
+

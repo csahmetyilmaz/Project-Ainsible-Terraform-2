@@ -1,0 +1,219 @@
+
+- name: Install Prometheus and Grafana on Amazon Linux
+  hosts: _dev_prometheus_server
+  become: true
+  vars_files:
+    - /home/ec2-user/vars.yml
+  vars:
+    prometheus_version: "2.37.6"
+   
+
+  tasks:
+    - name: Download Prometheus
+      ansible.builtin.get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/prometheus.tar.gz"
+
+    - name: Extract Prometheus
+      ansible.builtin.unarchive:
+        src: "/tmp/prometheus.tar.gz"
+        dest: "/tmp"
+        remote_src: yes
+    
+    - name: Remove Prometheus archive
+      ansible.builtin.file:
+        path: "/tmp/prometheus.tar.gz"
+        state: absent
+
+    - name: Create Prometheus directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+
+   # Bu yolu, prometheus-2.37.6.linux-amd64 dosyasını çıkardığınız dizine güncelleyin.
+
+    - name: Move Prometheus and promtool binaries to /usr/local/bin
+      ansible.builtin.command:
+        cmd: "sudo mv /tmp/prometheus-{{ prometheus_version }}.linux-amd64/prometheus /tmp/prometheus-{{ prometheus_version }}.linux-amd64/promtool /usr/local/bin/"
+ 
+
+    - name: Move prometheus.yml to /etc/prometheus/
+      ansible.builtin.command:
+        cmd: "sudo mv /tmp/prometheus-{{ prometheus_version }}.linux-amd64/prometheus.yml /etc/prometheus/"
+
+    - name: Move consoles and console_libraries to /etc/prometheus/
+      ansible.builtin.command:
+        cmd: "sudo mv /tmp/prometheus-{{ prometheus_version }}.linux-amd64/consoles/ /tmp/prometheus-{{ prometheus_version }}.linux-amd64/console_libraries/ /etc/prometheus/"
+        creates: "/etc/prometheus/consoles"
+      become: yes
+
+
+    - name: Check Prometheus version
+      ansible.builtin.command:
+        cmd: "/usr/local/bin/prometheus --version"
+      register: prometheus_version
+
+    - name: Display Prometheus version
+      ansible.builtin.debug:
+        var: prometheus_version.stdout_lines
+
+
+    - name: Create Prometheus user
+      ansible.builtin.user:
+        name: prometheus
+        system: yes
+        shell: /bin/false
+
+    - name: Set ownership for Prometheus directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: prometheus
+        group: prometheus
+        recurse: yes
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Create Prometheus systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Prometheus
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=prometheus
+          Group=prometheus
+          Type=simple
+          Restart=on-failure
+          RestartSec=5s
+          ExecStart=/usr/local/bin/prometheus \
+              --config.file /etc/prometheus/prometheus.yml \
+              --storage.tsdb.path /var/lib/prometheus/ \
+              --web.console.templates=/etc/prometheus/consoles \
+              --web.console.libraries=/etc/prometheus/console_libraries \
+              --web.listen-address=0.0.0.0:9090 \
+              --web.enable-lifecycle \
+              --log.level=info
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/prometheus.service
+
+    - name: Reload systemd after modifying service files
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      become: yes
+
+    - name: Enable Prometheus service at boot
+      ansible.builtin.systemd:
+        name: prometheus
+        enabled: yes
+      become: yes
+
+    - name: reStart Prometheus service
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+      become: yes
+
+    - name: Check Prometheus service status
+      ansible.builtin.service:
+        name: prometheus
+        state: started
+      become: yes
+
+
+
+    - name: Replace scrape_configs in Prometheus configuration
+      ansible.builtin.replace:
+        path: "/etc/prometheus/prometheus.yml"
+        regexp: '(?s)scrape_configs:.*$'
+        replace: |
+          scrape_configs:
+            # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+            - job_name: 'prometheus'
+
+              # metrics_path defaults to '/metrics'
+              # scheme defaults to 'http'.
+
+              static_configs:
+                - targets: ['localhost:9090']         
+              
+            # Yeni bir scrape job ekle
+            - job_name: 'remote_collector'
+              scrape_interval: 10s
+              static_configs:
+                - targets: [ "{{web_server_ip}}:9100",  "{{database_server_ip}}:9100", "{{ansible_controller_ip}}:9100"]
+      ignore_errors: yes
+      
+    - name: Restart Prometheus service
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+
+
+
+- name: Install Grafana on Amazon Linux 2
+  hosts: _dev_prometheus_server
+  become: yes
+  tasks:
+    - name: Add Grafana stable releases repository
+      ansible.builtin.yum_repository:
+        name: grafana
+        description: Grafana stable releases
+        baseurl: https://packages.grafana.com/oss/rpm
+        gpgkey: https://packages.grafana.com/gpg.key
+        enabled: yes
+
+    - name: Copy Grafana repository file
+      ansible.builtin.copy:
+        content: |
+          [grafana]
+          name=grafana
+          baseurl=https://packages.grafana.com/oss/rpm
+          repo_gpgcheck=1
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://packages.grafana.com/gpg.key
+        dest: /etc/yum.repos.d/grafana.repo
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install Grafana
+      ansible.builtin.yum:
+        name: grafana
+        state: latest
+
+    - name: Reload the systemctl daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Enable and start the Grafana server
+      ansible.builtin.systemd:
+        name: grafana-server
+        enabled: yes
+        state: started
+
+    - name: Verify the status of the Grafana server
+      ansible.builtin.systemd:
+        name: grafana-server
+        state: started
+
+    - name: Check the status of Grafana server
+      ansible.builtin.systemd:
+        name: grafana-server
+        state: started
+      register: grafana_status
+
+    
+    - name: Display Grafana server status
+      ansible.builtin.debug:
+        var: grafana_status.stdout_lines
+
