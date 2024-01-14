@@ -1,0 +1,82 @@
+- name: Install Node Exporter
+  hosts: _dev_controller
+  become: true
+
+  tasks:
+    
+    - name: Ensure wget is installed
+      package:
+        name: wget
+        state: present
+
+    - name: Download Node Exporter archive
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz"
+        dest: "/tmp/node_exporter-1.7.0.linux-amd64.tar.gz"
+
+    - name: Ensure tar is installed
+      package:
+        name: tar
+        state: present
+
+    - name: Extract Node Exporter Archive
+      ansible.builtin.unarchive:
+        src: "/tmp/node_exporter-1.7.0.linux-amd64.tar.gz"
+        dest: "/opt/"  # Hedef dizini isteğe bağlı olarak değiştirebilirsiniz
+        remote_src: yes
+    
+    - name: Move Node Exporter Binary
+      ansible.builtin.command:
+        cmd: "mv /opt/node_exporter-1.7.0.linux-amd64/node_exporter /usr/local/bin/"
+      args:
+        creates: /usr/local/bin/node_exporter
+
+    - name: Create Node Exporter User
+      ansible.builtin.user:
+        name: node_exporter
+        system: yes
+        shell: /bin/false
+
+    - name: Create Node Exporter Service File
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          Restart=on-failure
+          RestartSec=5s
+          ExecStart=/usr/local/bin/node_exporter
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable Node Exporter Service
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: yes
+  
+  
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Start Node Exporter Service
+      ansible.builtin.service:
+        name: node_exporter
+        state: started
+
+    - name: Check Node Exporter Service Status
+      ansible.builtin.systemd:
+        name: node_exporter
+      register: node_exporter_service_status
+     
+    - name: Display Node Exporter Service Status
+      ansible.builtin.debug:
+        var: node_exporter_service_status

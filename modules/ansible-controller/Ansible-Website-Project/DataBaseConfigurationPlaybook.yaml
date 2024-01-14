@@ -1,0 +1,272 @@
+- name: db configuration
+  hosts: _dev_dbserver
+  become: yes
+  collections:
+  - community.mysql
+
+  vars_files:
+    - /home/ec2-user/vars.yml
+
+  vars:
+    mysql_root_password: "Nazif1234"
+    ecom_db_name: ecomdb
+    ecom_db_user: ecomuser
+    ecom_db_password: ecompassword
+    local_project_path: "/home/ec2-user/Ansible-Website-Project"
+    script_file: "db-load-script.sql"
+    conf_file: "/.my.cnf"
+    target_root_path: "/home/ec2-user"
+
+  tasks:
+    - name: Install MariaDB and PyMySQL
+      become: yes
+      yum:
+        name: 
+            - mariadb-server
+            - MySQL-python
+        state: latest
+      register: mariadb_install_result
+
+
+    - name: Start MariaDB
+      become: yes  
+      systemd: 
+        name: mariadb
+        state: started
+        enabled: yes
+      register: mariadb_start_result
+
+
+    - name: Enable MariaDB
+      become: true
+      systemd: 
+        name: mariadb
+        enabled: yes
+      register: mariadb_enable_result
+    
+
+    - name: Display MariaDB Status
+      debug:
+        var: mariadb_status.stdout_lines
+
+
+    - name: Copy the .my.cnf File
+      copy: 
+        src: "{{local_project_path}}/{{ conf_file }}"
+        dest: "{{ target_root_path }}/{{ conf_file }}"
+      register: copy_confg_result
+    
+
+    - name: Copy the SQL Script
+      copy:
+        src: "{{ local_project_path }}/{{ script_file }}"
+        dest: "{{ target_root_path }}/{{ script_file }}"
+      ignore_errors: true
+      register: copy_script_result
+
+
+    - name: Restart MariaDB Service After Updating .my.cnf
+      systemd:
+        name: mariadb
+        state: restarted
+        enabled: yes
+  
+
+    - name: Create Password For the Root User
+      mysql_user:
+        login_password: ""
+        login_user: root
+        name: root
+        password: "{{ mysql_root_password }}"
+      register: root_user_result
+
+
+    - name: Set Permissions For .my.cnf
+      command: "chmod 400 {{ target_root_path }}/{{ conf_file }}"
+      when: copy_config_result is defined and copy_config_result.changed
+      ignore_errors: true
+
+
+    - name: Create MySQL Database
+      mysql_db:
+        name: "{{ ecom_db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      ignore_errors: true
+      register: create_database
+
+
+    - name: Check if Database Creation was Successful
+      fail:
+        msg: "Failed to create the database"
+      when: create_database.failed
+      
+
+    - name: Display Create Database Result
+      debug:
+        var: create_database
+      
+
+    - name: Create MySQL User
+      mysql_user:
+        name: "{{ ecom_db_user }}"
+        password: "{{ ecom_db_password }}"
+        host: "{{ web_server_ip }}"
+        priv: "{{ ecom_db_name }}.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        update_password: always
+      ignore_errors: true
+      register: mysql_user_result
+      no_log: true
+
+
+    - name: Display MySQL User Creation Result
+      debug:
+        var: mysql_user_result
+
+
+    - name: Display MySQL User Creation Failure Result 
+      fail:
+        msg: "MySQL User creation failed. Result: {{ mysql_user_result }}"
+      when: mysql_user_result.failed
+
+
+    - name: Grant privileges to ecomuser
+      mysql_user:
+        name: "{{ecom_db_user}}"
+        host: "{{ web_server_ip }}"
+        priv: '*.*:ALL'
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        state: present
+      become: yes
+      become_user: root
+      become_method: sudo
+      no_log: true
+      register: grant_privileges_result
+
+
+    - name: Execute FLUSH PRIVILEGES
+      community.mysql.mysql_query:
+        query: "FLUSH PRIVILEGES;"
+        login_user: root  
+        login_password: "{{ mysql_root_password }}"
+      become: yes
+      become_user: root
+      become_method: sudo
+
+
+    - name: Run MySQL Load Script
+      mysql_db:
+        login_user: root    
+        login_password: "{{ mysql_root_password }}"  
+        name: "{{ ecom_db_name }}"
+        state: import
+        target: "{{ target_root_path }}/{{ script_file }}"
+      register: flush_privileges_result
+    
+
+    - name: Save results to a file
+      copy:
+        content: |
+          Install Result: {{ mariadb_install_result | to_nice_json }}
+          Start Result: {{ mariadb_start_result | to_nice_json }}
+          Enable Result: {{ mariadb_enable_result | to_nice_json }}
+          Copy Script Result: {{ copy_script_result | to_nice_json }}
+          Root User Result: {{ root_user_result | to_nice_json }}
+          Copy Confg Result: {{ copy_confg_result | to_nice_json }}
+          Create Database: {{ create_database | to_nice_json }}
+          Mysql User Result {{ mysql_user_result | to_nice_json }}
+          Grant Privileges Result: {{ grant_privileges_result | to_nice_json }}
+          Flush Privileges Result: {{ flush_privileges_result | to_nice_json }}
+        dest: "{{ target_root_path }}/mariadb_installation_results.txt"
+    
+
+# ansible-playbook -i your_inventory_file your_playbook.yml --extra-vars "database_name=db1"
+
+
+- name: Install Node Exporter
+  hosts: _dev_dbserver
+  become: true
+
+  tasks:
+    
+    - name: Ensure wget is installed
+      package:
+        name: wget
+        state: present
+
+    - name: Download Node Exporter archive
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz"
+        dest: "/tmp/node_exporter-1.7.0.linux-amd64.tar.gz"
+
+    - name: Ensure tar is installed
+      package:
+        name: tar
+        state: present
+
+    - name: Extract Node Exporter Archive
+      ansible.builtin.unarchive:
+        src: "/tmp/node_exporter-1.7.0.linux-amd64.tar.gz"
+        dest: "/opt/"  # Hedef dizini isteğe bağlı olarak değiştirebilirsiniz
+        remote_src: yes
+    
+    - name: Move Node Exporter Binary
+      ansible.builtin.command:
+        cmd: "mv /opt/node_exporter-1.7.0.linux-amd64/node_exporter /usr/local/bin/"
+      args:
+        creates: /usr/local/bin/node_exporter
+
+    - name: Create Node Exporter User
+      ansible.builtin.user:
+        name: node_exporter
+        system: yes
+        shell: /bin/false
+
+    - name: Create Node Exporter Service File
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          Restart=on-failure
+          RestartSec=5s
+          ExecStart=/usr/local/bin/node_exporter
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable Node Exporter Service
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: yes
+  
+  
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Start Node Exporter Service
+      ansible.builtin.service:
+        name: node_exporter
+        state: started
+
+    - name: Check Node Exporter Service Status
+      ansible.builtin.systemd:
+        name: node_exporter
+      register: node_exporter_service_status
+     
+    - name: Display Node Exporter Service Status
+      ansible.builtin.debug:
+        var: node_exporter_service_status
