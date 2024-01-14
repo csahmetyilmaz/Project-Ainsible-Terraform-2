@@ -1,0 +1,49 @@
+---
+# tasks file for postgre
+    - name: copy files to the postgresql node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible-project/postgres/ # dockerfile ve initsql
+        dest: "{{ container_path }}" # postgresql klasorunu olusturacak
+
+    - name: remove "{{ container_name }}" container # eskiden olusturulmus imageler ve containerlari silsin diyoruz. 
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+    
+    - name: remove "{{ image_name }}" image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        state: absent
+    
+    - name: build docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build: 
+          path: "{{ container_path }}" 
+        source: build
+        state: present
+      register: image_info
+
+    - name: print the image_info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: launch postgresql docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        ports: 
+          - "5432:5432"
+        env: 
+          POSTGRES_PASSWORD:  "{{ password }}"
+          # POSTGRES_PASSWORD:  "Pp123456789"
+
+        volumes:
+          - /db-data:/var/lib/postgresql/data # bindmount
+      register: container_info
+
+    - name: print the container information
+      ansible.builtin.debug:
+        var: container_info

@@ -1,0 +1,43 @@
+---
+# tasks file for nodejs
+    - name: copy files to the nodejs node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible-project/nodejs/ 
+        dest: "{{ container_path }}"
+
+    - name: remove "{{ container_name }}" container # eskiden olusturulmus imageler ve containerlari silsin diyoruz. 
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+    
+    - name: remove "{{ image_name }}" image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        state: absent
+
+    - name: build docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        build: 
+          path: "{{ container_path }}" 
+        source: build
+        state: present
+      register: image_info
+
+    - name: print the image_info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: run nodejs docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        ports: 
+          - "5000:5000"
+      register: container_info
+
+    - name: print the container information
+      ansible.builtin.debug:
+        var: container_info

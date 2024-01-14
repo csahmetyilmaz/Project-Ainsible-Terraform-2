@@ -1,3 +1,4 @@
+
 # E-Commerce Application Infrastructure Project
 
 ## Project Description:
@@ -87,3 +88,4 @@ Bu proje, gerçek bir e-ticaret uygulaması için altyapıyı oluşturmayı ve y
    - Ansible ile loglama yapılandırması ekleyin.
 
 Bu proje, gerçek hayatta bir e-ticaret uygulamasının altyapısını oluşturmayı ve yönetmeyi hedefler. Projeyi tamamladıktan sonra, AWS üzerinde uygulama dağıtımı, güncellenmesi ve yönetilmesi konularında önemli bir deneyim kazanmış olacaksınız. İyi çalışmalar!
+
