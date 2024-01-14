@@ -89,3 +89,4 @@ Bu proje, gerçek bir e-ticaret uygulaması için altyapıyı oluşturmayı ve y
 
 Bu proje, gerçek hayatta bir e-ticaret uygulamasının altyapısını oluşturmayı ve yönetmeyi hedefler. Projeyi tamamladıktan sonra, AWS üzerinde uygulama dağıtımı, güncellenmesi ve yönetilmesi konularında önemli bir deneyim kazanmış olacaksınız. İyi çalışmalar!
 
+....
